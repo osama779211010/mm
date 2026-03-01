@@ -11,7 +11,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ('id', 'username', 'email', 'first_name', 'last_name')
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(source='user.username', read_only=True)
+      username = serializers.CharField(source='user.username', read_only=True)
       user_details = UserSerializer(source='user', read_only=True)
     class Meta:
         model = UserProfile
@@ -57,4 +57,5 @@ class DiagnosticResultSerializer(serializers.ModelSerializer):
 class ImageUploadSerializer(serializers.Serializer):
     image = serializers.ImageField()
     diagnosis_type = serializers.ChoiceField(choices=DiagnosticResult.DIAGNOSIS_TYPES)
+
 
