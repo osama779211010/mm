@@ -1,5 +1,6 @@
 from django.utils import timezone
 from datetime import timedelta
+from django.db import models
 from django.db.models import Count, Avg
 from rest_framework import viewsets, status, permissions
 from rest_framework.views import APIView
@@ -257,3 +258,4 @@ class ChatAdviceView(APIView):
             return Response({"advice": advice}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
