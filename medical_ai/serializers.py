@@ -20,18 +20,23 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 class DoctorProfileSerializer(serializers.ModelSerializer):
     user_details = UserSerializer(source='user', read_only=True)
+    branches = BranchSerializer(many=True, read_only=True)
 
     class Meta:
         model = DoctorProfile
         fields = '__all__'
 
 class BranchSerializer(serializers.ModelSerializer):
+    doctor_name = serializers.CharField(source='doctor.user.username', read_only=True)
+
     class Meta:
         model = Branch
         fields = '__all__'
 
 class SecretaryProfileSerializer(serializers.ModelSerializer):
     user_details = UserSerializer(source='user', read_only=True)
+    branch_name = serializers.CharField(source='branch.governorate', read_only=True)
+    branch_phone = serializers.CharField(source='branch.contact_number', read_only=True)
 
     class Meta:
         model = SecretaryProfile
@@ -40,6 +45,7 @@ class SecretaryProfileSerializer(serializers.ModelSerializer):
 class AppointmentSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.username', read_only=True)
     branch_name = serializers.CharField(source='branch.governorate', read_only=True)
+    branch_phone = serializers.CharField(source='branch.contact_number', read_only=True)
 
     class Meta:
         model = Appointment
