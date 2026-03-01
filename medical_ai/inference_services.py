@@ -3,9 +3,6 @@ import numpy as np
 import cv2
 from PIL import Image
 import tensorflow as tf
-import torch
-import torch.nn as nn
-from torchvision import models, transforms
 
 class AIInferenceService:
     def __init__(self):
@@ -193,3 +190,4 @@ class AIInferenceService:
 
     def get_ai_advice(self, message):
         return "هذه نصيحة استرشادية بناءً على البيانات المتوفرة. يرجى مراجعة الطبيب."
+
