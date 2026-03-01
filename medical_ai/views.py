@@ -46,7 +46,14 @@ class RegisterView(APIView):
                 if role == UserProfile.DOCTOR:
                     DoctorProfile.objects.create(user=user)
                 elif role == UserProfile.SECRETARY:
-                    pass
+                    branch_id = request.data.get('branch_id')
+                    if not branch_id:
+                        return Response({'error': 'يجب تحديد الفرع للسكرتير.'}, status=status.HTTP_400_BAD_REQUEST)
+                    try:
+                        branch = Branch.objects.get(id=branch_id)
+                        SecretaryProfile.objects.create(user=user, branch=branch)
+                    except Branch.DoesNotExist:
+                        return Response({'error': 'الفرع المحدد غير موجود.'}, status=status.HTTP_400_BAD_REQUEST)
 
                 token, created = Token.objects.get_or_create(user=user)
                 
@@ -73,7 +80,7 @@ class LoginView(APIView):
             profile = getattr(user, 'userprofile', None)
             role = profile.role if profile else 'PATIENT'
             
-            return Response({
+            response_data = {
                 'token': token.key,
                 'user': {
                     'id': user.id,
@@ -81,7 +88,16 @@ class LoginView(APIView):
                     'email': user.email,
                     'role': role
                 }
-            }, status=status.HTTP_200_OK)
+            }
+
+            # Add branch info for secretaries
+            if role == UserProfile.SECRETARY:
+                sec_profile = getattr(user, 'secretary_profile', None)
+                if sec_profile:
+                    response_data['user']['branch_id'] = sec_profile.branch.id
+                    response_data['user']['branch_name'] = f"{sec_profile.branch.governorate} - {sec_profile.branch.street_name}"
+
+            return Response(response_data, status=status.HTTP_200_OK)
         else:
             return Response({'error': 'Invalid Credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -115,16 +131,78 @@ class DoctorProfileViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 class BranchViewSet(viewsets.ModelViewSet):
-    queryset = Branch.objects.all()
     serializer_class = BranchSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        profile = getattr(user, 'userprofile', None)
+        
+        if user.is_staff:
+            return Branch.objects.all()
+        
+        if profile and profile.role == UserProfile.DOCTOR:
+            return Branch.objects.filter(doctor__user=user)
+        
+        if profile and profile.role == UserProfile.SECRETARY:
+            sec_profile = getattr(user, 'secretary_profile', None)
+            if sec_profile:
+                return Branch.objects.filter(id=sec_profile.branch.id)
+        
+        # Patients can see branches to book them, but maybe filter by doctor_id in query params
+        doctor_id = self.request.query_params.get('doctor_id')
+        if doctor_id:
+            return Branch.objects.filter(doctor_id=doctor_id)
+            
+        return Branch.objects.all() # Or return none if you want strict lists
+
+    def perform_create(self, serializer):
+        # Auto-assign branch to the doctor who created it
+        if hasattr(self.request.user, 'doctor_profile'):
+            serializer.save(doctor=self.request.user.doctor_profile)
+        else:
+            serializer.save()
 
 class SecretaryProfileViewSet(viewsets.ModelViewSet):
-    queryset = SecretaryProfile.objects.all()
     serializer_class = SecretaryProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return SecretaryProfile.objects.all()
+        
+        # Doctors see secretaries in their branches
+        if hasattr(user, 'doctor_profile'):
+            return SecretaryProfile.objects.filter(branch__doctor__user=user)
+            
+        # Secretary sees themselves
+        if hasattr(user, 'secretary_profile'):
+            return SecretaryProfile.objects.filter(user=user)
+            
+        return SecretaryProfile.objects.none()
 
 class AppointmentViewSet(viewsets.ModelViewSet):
-    queryset = Appointment.objects.all()
     serializer_class = AppointmentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        profile = getattr(user, 'userprofile', None)
+
+        if user.is_staff:
+            return Appointment.objects.all()
+
+        if profile and profile.role == UserProfile.DOCTOR:
+            return Appointment.objects.filter(branch__doctor__user=user)
+
+        if profile and profile.role == UserProfile.SECRETARY:
+            sec_profile = getattr(user, 'secretary_profile', None)
+            if sec_profile:
+                return Appointment.objects.filter(branch=sec_profile.branch)
+
+        # For patients
+        return Appointment.objects.filter(patient=user)
 
 class ChatMessageViewSet(viewsets.ModelViewSet):
     serializer_class = ChatMessageSerializer
