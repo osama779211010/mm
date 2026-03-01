@@ -59,27 +59,41 @@ class AIInferenceService:
 
     def _is_valid_medical_image(self, img_array, diag_type):
         """
-        التحقق البسيط من أن الصورة ذات صلة بالتشخيص الطبي المطلوب.
+        التحقق من أن الصورة ذات صلة بالتشخيص الطبي المطلوب.
         """
         # 1. التحقق من التباين والوضوح
         std_dev = np.std(img_array)
-        if std_dev < 0.02:
-            return False, "الصورة غير واضحة أو باهتة جداً، يرجى إعادة محاولة التصوير."
+        if std_dev < 0.015:
+            return False, "الصورة غير واضحة تماماً أو باهتة، يرجى إعادة محاولة التصوير في إضاءة جيدة."
 
-        # 2. التحقق من الأشعة السينية (غالبية الأشعة تكون بتدرج رمادي)
+        # 2. التحقق من كثافة الحواف (Edge Density) لمنع الصور الفارغة أو التشويش
+        # تحويل [0,1] إلى [0,255]
+        img_uint8 = (img_array * 255).astype(np.uint8)
+        gray = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2GRAY)
+        edges = cv2.Canny(gray, 100, 200)
+        edge_density = np.sum(edges > 0) / (edges.shape[0] * edges.shape[1])
+        if edge_density < 0.005:
+            return False, "الصورة تبدو فارغة أو لا تحتوي على تفاصيل كافية للتحليل."
+
+        # 3. التحقق من صور الأشعة (PNEUMONIA) - تدرج الرمادي وغياب الألوان المشبعة
         if diag_type == 'PNEUMONIA':
-            # تحويل مصفوفة [0,1] إلى [0,255] للتحليل اللوني
-            img_uint8 = (img_array * 255).astype(np.uint8)
             hsv = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2HSV)
             saturation = hsv[:,:,1].mean()
-            # إذا كانت الألوان مشبعة جداً، فهي غالباً ليست أشعة صدرية سينية
-            if saturation > 45:
+            # الأشعة الرمادية تميل لامتلاك تشبع لوني منخفض جداً
+            if saturation > 50:
                 return False, "هذه الصورة ملونة جداً، يبدو أنها ليست أشعة سينية للصدر. يرجى رفع صورة أشعة صدر صحيحة."
         
-        # 3. التحقق من صور الجلدية (تحتاج لفحص أدق لاحقاً)
+        # 4. التحقق من صور الجلد (SKIN_CANCER) - فحص وجود ألوان البشرة
         if diag_type == 'SKIN_CANCER':
-            # يمكنك إضافة فحص لألوان الجلد هنا، لكن سنكتفي حالياً بدقة الموديل
-            pass
+            hsv = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2HSV)
+            # النطاق التقريبي لألوان البشرة في HSV
+            lower_skin = np.array([0, 20, 70], dtype=np.uint8)
+            upper_skin = np.array([25, 255, 255], dtype=np.uint8)
+            mask = cv2.inRange(hsv, lower_skin, upper_skin)
+            skin_ratio = np.sum(mask > 0) / (mask.shape[0] * mask.shape[1])
+            
+            if skin_ratio < 0.15:
+                return False, "الرجاء رفع صورة واضحة لمنطقة الجلد المصابة. لم يتم التعرف على ملامح بشرة كافية."
 
         return True, ""
 
@@ -107,10 +121,13 @@ class AIInferenceService:
         interpreter.invoke()
         
         preds = interpreter.get_tensor(output_details[0]['index'])
-        # الموديل يعطي قيمة واحدة (sigmoid) حيث > 0.5 تعني التهاب رئوي
         p_prob = float(preds[0][0])
         print(f"DEBUG SERVICE: Pneumonia Raw Prob: {p_prob}")
         
+        # إذا كانت النتيجة قريبة جداً من 50% (مثلاً بين 40% و 60%)، نعتبرها منطقة حيرة
+        if 0.4 < p_prob < 0.6:
+            return {"error": "INVALID_IMAGE", "message": "لم يتمكن النظام من تحديد النتيجة بدقة. الرجاء رفع صورة أشعة أكثر وضوحاً.", "class": "Uncertain"}, 0.0
+
         if p_prob > 0.5:
             label = "Pneumonia"
             display_conf = p_prob
@@ -159,6 +176,12 @@ class AIInferenceService:
         
         # الحصول على أعلى 3 توقعات
         top_indices = np.argsort(output_data)[-3:][::-1]
+        prob = float(output_data[top_indices[0]])
+        
+        # إذا كانت دقة أعلى توقع أقل من 35%، نرفض الصورة لعدم اليقين
+        if prob < 0.35:
+            return {"error": "INVALID_IMAGE", "message": "الرجاء رفع صورة أوضح وبإضاءة جيدة لمنطقة الإصابة لضمان دقة التحليل.", "class": "Low Confidence"}, prob
+
         results = []
         for idx in top_indices:
             results.append({
@@ -166,7 +189,6 @@ class AIInferenceService:
                 "probability": float(output_data[idx])
             })
             
-        prob = float(output_data[top_indices[0]])
         raw_label = labels[top_indices[0]]
         
         # تصنيف الحالات الحميدة (nv, bkl, df, vasc) كـ Normal/Benign
@@ -190,4 +212,3 @@ class AIInferenceService:
 
     def get_ai_advice(self, message):
         return "هذه نصيحة استرشادية بناءً على البيانات المتوفرة. يرجى مراجعة الطبيب."
-
