@@ -83,7 +83,7 @@ class LoginView(APIView):
                 }
             }, status=status.HTTP_200_OK)
         else:
-            return Response({'error': 'Invalid Credentials.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Invalid Credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
 
 # تهيئة الخدمة بشكل متأخر (Lazy Loading) لتجنب التحميل عند بدء السيرفر أو عمل Migrations
 _ai_service = None
@@ -101,14 +101,18 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAdminUser]
 
 class UserProfileViewSet(viewsets.ModelViewSet):
-    queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return UserProfile.objects.all()
+        return UserProfile.objects.filter(user=self.request.user)
 
 class DoctorProfileViewSet(viewsets.ModelViewSet):
     queryset = DoctorProfile.objects.all()
     serializer_class = DoctorProfileSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
 
 class BranchViewSet(viewsets.ModelViewSet):
     queryset = Branch.objects.all()
@@ -144,9 +148,13 @@ class ChatMessageViewSet(viewsets.ModelViewSet):
         serializer.save(sender=self.request.user)
 
 class DiagnosticResultViewSet(viewsets.ModelViewSet):
-    queryset = DiagnosticResult.objects.all()
     serializer_class = DiagnosticResultSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return DiagnosticResult.objects.all()
+        return DiagnosticResult.objects.filter(user=self.request.user)
 
 class AdminStatsView(APIView):
     permission_classes = [permissions.IsAdminUser]
