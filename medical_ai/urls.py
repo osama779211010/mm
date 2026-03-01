@@ -9,13 +9,13 @@ from .views import (
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
-router.register(r'profiles', UserProfileViewSet)
+router.register(r'profiles', UserProfileViewSet, basename='userprofile')
 router.register(r'doctors', DoctorProfileViewSet)
 router.register(r'branches', BranchViewSet)
 router.register(r'secretaries', SecretaryProfileViewSet)
 router.register(r'appointments', AppointmentViewSet)
 router.register(r'messages', ChatMessageViewSet, basename='chatmessage')
-router.register(r'results', DiagnosticResultViewSet)
+router.register(r'results', DiagnosticResultViewSet, basename='diagnosticresult')
 
 urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
@@ -25,3 +25,4 @@ urlpatterns = [
     path('stats/', AdminStatsView.as_view(), name='admin-stats'),
     path('', include(router.urls)),
 ]
+
