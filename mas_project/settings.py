@@ -147,5 +147,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Configure WhiteNoise to serve static files with cache
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-CORS_ALLOW_ALL_ORIGINS = True
-
+CSRF_TRUSTED_ORIGINS = [
+    'https://mm-production-48d3.up.railway.app',
+    'http://mm-production-48d3.up.railway.app',
+]
