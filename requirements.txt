@@ -5,9 +5,8 @@ numpy
 opencv-python-headless
 Pillow
 tensorflow-cpu
-torch
-torchvision
 gunicorn
 whitenoise
 requests
+
 
