@@ -1,6 +1,6 @@
 from django.utils import timezone
-from datetime import timedelta
 from django.db import models
+from datetime import timedelta
 from django.db.models import Count, Avg
 from rest_framework import viewsets, status, permissions
 from rest_framework.views import APIView
@@ -98,14 +98,17 @@ def get_ai_service():
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [permissions.IsAdminUser]
 
 class UserProfileViewSet(viewsets.ModelViewSet):
     queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAdminUser]
 
 class DoctorProfileViewSet(viewsets.ModelViewSet):
     queryset = DoctorProfile.objects.all()
     serializer_class = DoctorProfileSerializer
+    permission_classes = [permissions.IsAdminUser]
 
 class BranchViewSet(viewsets.ModelViewSet):
     queryset = Branch.objects.all()
@@ -143,6 +146,7 @@ class ChatMessageViewSet(viewsets.ModelViewSet):
 class DiagnosticResultViewSet(viewsets.ModelViewSet):
     queryset = DiagnosticResult.objects.all()
     serializer_class = DiagnosticResultSerializer
+    permission_classes = [permissions.IsAdminUser]
 
 class AdminStatsView(APIView):
     permission_classes = [permissions.IsAdminUser]
@@ -258,4 +262,3 @@ class ChatAdviceView(APIView):
             return Response({"advice": advice}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
