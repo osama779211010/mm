@@ -11,14 +11,16 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ('id', 'username', 'email', 'first_name', 'last_name')
 
 class UserProfileSerializer(serializers.ModelSerializer):
-      username = serializers.CharField(source='user.username', read_only=True)
-      user_details = UserSerializer(source='user', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+    user_details = UserSerializer(source='user', read_only=True)
+
     class Meta:
         model = UserProfile
         fields = '__all__'
 
 class DoctorProfileSerializer(serializers.ModelSerializer):
     user_details = UserSerializer(source='user', read_only=True)
+
     class Meta:
         model = DoctorProfile
         fields = '__all__'
@@ -30,6 +32,7 @@ class BranchSerializer(serializers.ModelSerializer):
 
 class SecretaryProfileSerializer(serializers.ModelSerializer):
     user_details = UserSerializer(source='user', read_only=True)
+
     class Meta:
         model = SecretaryProfile
         fields = '__all__'
@@ -37,6 +40,7 @@ class SecretaryProfileSerializer(serializers.ModelSerializer):
 class AppointmentSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.username', read_only=True)
     branch_name = serializers.CharField(source='branch.governorate', read_only=True)
+
     class Meta:
         model = Appointment
         fields = '__all__'
@@ -44,6 +48,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
 class ChatMessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source='sender.username', read_only=True)
     receiver_name = serializers.CharField(source='receiver.username', read_only=True)
+
     class Meta:
         model = ChatMessage
         fields = '__all__'
@@ -57,5 +62,3 @@ class DiagnosticResultSerializer(serializers.ModelSerializer):
 class ImageUploadSerializer(serializers.Serializer):
     image = serializers.ImageField()
     diagnosis_type = serializers.ChoiceField(choices=DiagnosticResult.DIAGNOSIS_TYPES)
-
-
