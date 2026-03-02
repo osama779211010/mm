@@ -63,41 +63,45 @@ class AIInferenceService:
         """
         # 1. التحقق من التباين والوضوح
         std_dev = np.std(img_array)
-        if std_dev < 0.015:
+        print(f"DEBUG VALIDATION: std_dev={std_dev:.5f}")
+        if std_dev < 0.01: # تم تقليل الحساسية قليلاً من 0.015
             return False, "الصورة غير واضحة تماماً أو باهتة، يرجى إعادة محاولة التصوير في إضاءة جيدة."
 
-        # 2. التحقق من كثافة الحواف (Edge Density) لمنع الصور الفارغة أو التشويش
-        # تحويل [0,1] إلى [0,255]
+        # 2. التحقق من كثافة الحواف (Edge Density)
         img_uint8 = (img_array * 255).astype(np.uint8)
         gray = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2GRAY)
-        edges = cv2.Canny(gray, 100, 200)
+        edges = cv2.Canny(gray, 50, 150) # تقليل عتبة كاني ليكون أكثر حساسية
         edge_density = np.sum(edges > 0) / (edges.shape[0] * edges.shape[1])
-        if edge_density < 0.005:
+        print(f"DEBUG VALIDATION: edge_density={edge_density:.5f}")
+        if edge_density < 0.002: # تم تقليلها من 0.005 لضمان قبول الأشعة السلسة
             return False, "الصورة تبدو فارغة أو لا تحتوي على تفاصيل كافية للتحليل."
 
-        # 3. التحقق من صور الأشعة (PNEUMONIA) - تدرج الرمادي وغياب الألوان المشبعة
+        # 3. التحقق من صور الأشعة (PNEUMONIA)
         if diag_type == 'PNEUMONIA':
             hsv = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2HSV)
             saturation = hsv[:,:,1].mean()
-            # الأشعة الرمادية تميل لامتلاك تشبع لوني منخفض جداً (عادة أقل من 20)
-            if saturation > 35:
-                return False, "هذه الصورة تحتوي على ألوان مشبعة، يبدو أنها ليست أشعة سينية. يرجى رفع صورة أشعة صدر باللونين الأبيض والأسود."
+            print(f"DEBUG VALIDATION [X-RAY]: saturation={saturation:.2f}")
+            # زيادة الحد المسموح به للتشبع اللوني لضمان قبول الأشعة المصورة بكاميرا هاتف
+            if saturation > 60: # تم رفعها من 35
+                return False, "هذه الصورة تحتوي على ألوان مشبعة جداً، يبدو أنها ليست أشعة سينية. يرجى رفع صورة أشعة صدر باللونين الأبيض والأسود."
             
-            # فحص إضافي: الأشعة تتميز بتدرج رمادي واسع، الصور العادية أو النصوص لا تمتلك ذلك
             hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
-            # إذا كان توزيع الألوان ضيق جداً (مثل صورة نص أو خلفية سادة)
-            if np.count_nonzero(hist > (gray.size * 0.01)) < 30:
-                return False, "الصورة لا تحتوي على تفاصيل أشعة كافية. يرجى رفع صورة أشعة واضحة بجودة جيدة."
+            diversity = np.count_nonzero(hist > (gray.size * 0.005)) # تقليل النسبة المئوية للعد
+            print(f"DEBUG VALIDATION [X-RAY]: histogram diversity={diversity}")
+            if diversity < 15: # تم تقليلها من 30
+                return False, "الصورة لا تحتوي على تدرج رمادي كافٍ للأشعة. يرجى رفع صورة واضحة."
         
-        # 4. التحقق من صور الجلد (SKIN_CANCER) - فحص وجود ألوان البشرة
+        # 4. التحقق من صور الجلد (SKIN_CANCER)
         if diag_type == 'SKIN_CANCER':
             hsv = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2HSV)
-            lower_skin = np.array([0, 15, 60], dtype=np.uint8)
-            upper_skin = np.array([30, 255, 255], dtype=np.uint8)
+            # توسيع نطاق لون البشرة قليلاً
+            lower_skin = np.array([0, 10, 40], dtype=np.uint8)
+            upper_skin = np.array([40, 255, 255], dtype=np.uint8)
             mask = cv2.inRange(hsv, lower_skin, upper_skin)
             skin_ratio = np.sum(mask > 0) / (mask.shape[0] * mask.shape[1])
+            print(f"DEBUG VALIDATION [SKIN]: skin_ratio={skin_ratio:.3f}")
             
-            if skin_ratio < 0.10:
+            if skin_ratio < 0.04: # تم تقليلها من 0.10 لتناسب لقطات الجلد المقربة
                 return False, "الرجاء رفع صورة واضحة لمنطقة الجلد المصابة. لم يتم التعرف على ملامح بشرة كافية."
 
         return True, ""
@@ -125,7 +129,7 @@ class AIInferenceService:
         preds = interpreter.get_tensor(output_details[0]['index'])
         p_prob = float(preds[0][0])
         
-        if 0.45 < p_prob < 0.55:
+        if 0.49 < p_prob < 0.51: # تم تضييق نطاق الشك من 0.45-0.55
             return {"error": "INVALID_IMAGE", "message": "النتيجة غير حاسمة، يرجى رفع صورة أشعة أكثر دقة.", "class": "غير مؤكد"}, 0.0
 
         if p_prob > 0.5:
@@ -171,7 +175,7 @@ class AIInferenceService:
         top_indices = np.argsort(output_data)[-3:][::-1]
         prob = float(output_data[top_indices[0]])
         
-        if prob < 0.30:
+        if prob < 0.20: # تم تقليلها من 0.30
             return {"error": "INVALID_IMAGE", "message": "الدقة منخفضة جداً، يرجى تصوير المنطقة بوضوح أكبر.", "class": "غير مؤكد"}, prob
 
         results = []
