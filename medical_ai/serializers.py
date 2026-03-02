@@ -18,19 +18,19 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = '__all__'
 
+class BranchSerializer(serializers.ModelSerializer):
+    doctor_name = serializers.CharField(source='doctor.user.username', read_only=True)
+
+    class Meta:
+        model = Branch
+        fields = '__all__'
+
 class DoctorProfileSerializer(serializers.ModelSerializer):
     user_details = UserSerializer(source='user', read_only=True)
     branches = BranchSerializer(many=True, read_only=True)
 
     class Meta:
         model = DoctorProfile
-        fields = '__all__'
-
-class BranchSerializer(serializers.ModelSerializer):
-    doctor_name = serializers.CharField(source='doctor.user.username', read_only=True)
-
-    class Meta:
-        model = Branch
         fields = '__all__'
 
 class SecretaryProfileSerializer(serializers.ModelSerializer):
