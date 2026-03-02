@@ -44,7 +44,9 @@ class RegisterView(APIView):
                 
                 # Create extra profile based on role
                 if role == UserProfile.DOCTOR:
-                    DoctorProfile.objects.create(user=user)
+                    specialty = request.data.get('specialty', 'طبيب عام')
+                    bio = request.data.get('bio', '')
+                    DoctorProfile.objects.create(user=user, specialty=specialty, bio=bio)
                 elif role == UserProfile.SECRETARY:
                     branch_id = request.data.get('branch_id')
                     if not branch_id:
