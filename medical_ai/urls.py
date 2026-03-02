@@ -11,9 +11,9 @@ router = DefaultRouter()
 router.register(r'users', UserViewSet)
 router.register(r'profiles', UserProfileViewSet, basename='userprofile')
 router.register(r'doctors', DoctorProfileViewSet)
-router.register(r'branches', BranchViewSet)
-router.register(r'secretaries', SecretaryProfileViewSet)
-router.register(r'appointments', AppointmentViewSet)
+router.register(r'branches', BranchViewSet, basename='branch')
+router.register(r'secretaries', SecretaryProfileViewSet, basename='secretaryprofile')
+router.register(r'appointments', AppointmentViewSet, basename='appointment')
 router.register(r'messages', ChatMessageViewSet, basename='chatmessage')
 router.register(r'results', DiagnosticResultViewSet, basename='diagnosticresult')
 
@@ -25,4 +25,3 @@ urlpatterns = [
     path('stats/', AdminStatsView.as_view(), name='admin-stats'),
     path('', include(router.urls)),
 ]
-
