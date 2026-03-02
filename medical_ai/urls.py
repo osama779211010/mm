@@ -4,7 +4,8 @@ from .views import (
     MedicalDiagnosisView, ChatAdviceView, AdminStatsView,
     UserProfileViewSet, DoctorProfileViewSet, BranchViewSet,
     SecretaryProfileViewSet, AppointmentViewSet, ChatMessageViewSet,
-    UserViewSet, DiagnosticResultViewSet, RegisterView, LoginView
+    UserViewSet, DiagnosticResultViewSet, RegisterView, LoginView,
+    NotificationViewSet
 )
 
 router = DefaultRouter()
@@ -16,6 +17,7 @@ router.register(r'secretaries', SecretaryProfileViewSet, basename='secretaryprof
 router.register(r'appointments', AppointmentViewSet, basename='appointment')
 router.register(r'messages', ChatMessageViewSet, basename='chatmessage')
 router.register(r'results', DiagnosticResultViewSet, basename='diagnosticresult')
+router.register(r'notifications', NotificationViewSet, basename='notification')
 
 urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
