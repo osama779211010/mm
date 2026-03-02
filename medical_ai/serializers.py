@@ -24,6 +24,7 @@ class BranchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Branch
         fields = '__all__'
+        read_only_fields = ('doctor',)
 
 class DoctorProfileSerializer(serializers.ModelSerializer):
     user_details = UserSerializer(source='user', read_only=True)
