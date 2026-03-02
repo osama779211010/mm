@@ -79,20 +79,25 @@ class AIInferenceService:
         if diag_type == 'PNEUMONIA':
             hsv = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2HSV)
             saturation = hsv[:,:,1].mean()
-            # الأشعة الرمادية تميل لامتلاك تشبع لوني منخفض جداً
-            if saturation > 50:
-                return False, "هذه الصورة ملونة جداً، يبدو أنها ليست أشعة سينية للصدر. يرجى رفع صورة أشعة صدر صحيحة."
+            # الأشعة الرمادية تميل لامتلاك تشبع لوني منخفض جداً (عادة أقل من 20)
+            if saturation > 35:
+                return False, "هذه الصورة تحتوي على ألوان مشبعة، يبدو أنها ليست أشعة سينية. يرجى رفع صورة أشعة صدر باللونين الأبيض والأسود."
+            
+            # فحص إضافي: الأشعة تتميز بتدرج رمادي واسع، الصور العادية أو النصوص لا تمتلك ذلك
+            hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
+            # إذا كان توزيع الألوان ضيق جداً (مثل صورة نص أو خلفية سادة)
+            if np.count_nonzero(hist > (gray.size * 0.01)) < 30:
+                return False, "الصورة لا تحتوي على تفاصيل أشعة كافية. يرجى رفع صورة أشعة واضحة بجودة جيدة."
         
         # 4. التحقق من صور الجلد (SKIN_CANCER) - فحص وجود ألوان البشرة
         if diag_type == 'SKIN_CANCER':
             hsv = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2HSV)
-            # النطاق التقريبي لألوان البشرة في HSV
-            lower_skin = np.array([0, 20, 70], dtype=np.uint8)
-            upper_skin = np.array([25, 255, 255], dtype=np.uint8)
+            lower_skin = np.array([0, 15, 60], dtype=np.uint8)
+            upper_skin = np.array([30, 255, 255], dtype=np.uint8)
             mask = cv2.inRange(hsv, lower_skin, upper_skin)
             skin_ratio = np.sum(mask > 0) / (mask.shape[0] * mask.shape[1])
             
-            if skin_ratio < 0.15:
+            if skin_ratio < 0.10:
                 return False, "الرجاء رفع صورة واضحة لمنطقة الجلد المصابة. لم يتم التعرف على ملامح بشرة كافية."
 
         return True, ""
@@ -106,15 +111,12 @@ class AIInferenceService:
         input_details = interpreter.get_input_details()
         output_details = interpreter.get_output_details()
 
-        # تجهيز الصورة: 224x224 RGB مع تطبيع [0, 1]
         img = Image.open(image_path).convert('RGB').resize((224, 224))
         img_array = np.array(img, dtype=np.float32) / 255.0
         
-        # التحقق من نوع الصورة
         is_valid, error_msg = self._is_valid_medical_image(img_array, 'PNEUMONIA')
         if not is_valid:
-            print(f"DEBUG SERVICE: Invalid image detected - {error_msg}")
-            return {"error": "INVALID_IMAGE", "message": error_msg, "class": "Invalid Input"}, 0.0
+            return {"error": "INVALID_IMAGE", "message": error_msg, "class": "بيانات غير صالحة"}, 0.0
 
         img_batch = np.expand_dims(img_array, axis=0)
         interpreter.set_tensor(input_details[0]['index'], img_batch)
@@ -122,17 +124,15 @@ class AIInferenceService:
         
         preds = interpreter.get_tensor(output_details[0]['index'])
         p_prob = float(preds[0][0])
-        print(f"DEBUG SERVICE: Pneumonia Raw Prob: {p_prob}")
         
-        # إذا كانت النتيجة قريبة جداً من 50% (مثلاً بين 40% و 60%)، نعتبرها منطقة حيرة
-        if 0.4 < p_prob < 0.6:
-            return {"error": "INVALID_IMAGE", "message": "لم يتمكن النظام من تحديد النتيجة بدقة. الرجاء رفع صورة أشعة أكثر وضوحاً.", "class": "Uncertain"}, 0.0
+        if 0.45 < p_prob < 0.55:
+            return {"error": "INVALID_IMAGE", "message": "النتيجة غير حاسمة، يرجى رفع صورة أشعة أكثر دقة.", "class": "غير مؤكد"}, 0.0
 
         if p_prob > 0.5:
-            label = "Pneumonia"
+            label = "مصاب (Pneumonia)"
             display_conf = p_prob
         else:
-            label = "Normal"
+            label = "غير مصاب (Normal)"
             display_conf = 1.0 - p_prob
 
         return {"class": label, "probability": p_prob}, display_conf
@@ -145,25 +145,19 @@ class AIInferenceService:
         input_details = self.skin_cancer_interpreter.get_input_details()
         output_details = self.skin_cancer_interpreter.get_output_details()
 
-        # التأكد من التحويل لـ RGB لحل مشكلة الـ alpha channel (RGBA)
         img = Image.open(image_path).convert("RGB").resize((224, 224))
-        # استخدام معالجة MobileNet (Scaling pixels to [-1, 1])
         img_array = np.array(img, dtype=np.float32)
         
-        # التحقق الأولي
         is_valid, error_msg = self._is_valid_medical_image(img_array / 255.0, 'SKIN_CANCER')
         if not is_valid:
-            return {"error": "INVALID_IMAGE", "message": error_msg, "class": "Invalid Input"}, 0.0
+            return {"error": "INVALID_IMAGE", "message": error_msg, "class": "بيانات غير صالحة"}, 0.0
 
         input_data = np.expand_dims((img_array / 127.5) - 1.0, axis=0)
 
         self.skin_cancer_interpreter.set_tensor(input_details[0]['index'], input_data)
         self.skin_cancer_interpreter.invoke()
         output_data = self.skin_cancer_interpreter.get_tensor(output_details[0]['index'])[0]
-        print(f"DEBUG SERVICE: Skin Cancer Raw Probs: {output_data}")
         
-        # تصحيح ترتيب التسميات بناءً على تدريب الموديل (class_indices)
-        # {'akiec': 0, 'bcc': 1, 'bkl': 2, 'df': 3, 'mel': 4, 'nv': 5, 'vasc': 6}
         labels = [
             "Actinic keratoses",          # akiec
             "Basal cell carcinoma",       # bcc
@@ -174,13 +168,11 @@ class AIInferenceService:
             "Vascular lesions"            # vasc
         ]
         
-        # الحصول على أعلى 3 توقعات
         top_indices = np.argsort(output_data)[-3:][::-1]
         prob = float(output_data[top_indices[0]])
         
-        # إذا كانت دقة أعلى توقع أقل من 35%، نرفض الصورة لعدم اليقين
-        if prob < 0.35:
-            return {"error": "INVALID_IMAGE", "message": "الرجاء رفع صورة أوضح وبإضاءة جيدة لمنطقة الإصابة لضمان دقة التحليل.", "class": "Low Confidence"}, prob
+        if prob < 0.30:
+            return {"error": "INVALID_IMAGE", "message": "الدقة منخفضة جداً، يرجى تصوير المنطقة بوضوح أكبر.", "class": "غير مؤكد"}, prob
 
         results = []
         for idx in top_indices:
@@ -190,14 +182,12 @@ class AIInferenceService:
             })
             
         raw_label = labels[top_indices[0]]
-        
-        # تصنيف الحالات الحميدة (nv, bkl, df, vasc) كـ Normal/Benign
         benign_labels = ["Melanocytic nevi", "Benign keratosis-like lesions", "Dermatofibroma", "Vascular lesions"]
         
         if raw_label in benign_labels:
-            label = "Normal/Benign"
+            label = "غير مصاب (حميد/طبيعي)"
         else:
-            label = raw_label
+            label = f"مصاب محتمل ({raw_label})"
             
         return {
             "class": label, 
