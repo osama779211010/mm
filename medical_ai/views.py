@@ -11,11 +11,12 @@ from django.contrib.auth import authenticate
 from .serializers import (
     ImageUploadSerializer, DiagnosticResultSerializer, UserSerializer,
     UserProfileSerializer, DoctorProfileSerializer, BranchSerializer,
-    SecretaryProfileSerializer, AppointmentSerializer, ChatMessageSerializer
+    SecretaryProfileSerializer, AppointmentSerializer, ChatMessageSerializer,
+    NotificationSerializer
 )
 from .models import (
     DiagnosticResult, UserProfile, DoctorProfile, 
-    Branch, SecretaryProfile, Appointment, ChatMessage
+    Branch, SecretaryProfile, Appointment, ChatMessage, Notification
 )
 from django.contrib.auth.models import User
 
@@ -207,6 +208,41 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 
         # For patients
         return Appointment.objects.filter(patient=user)
+
+    def perform_create(self, serializer):
+        appointment = serializer.save(patient=self.request.user)
+        # إشعار للسكرتارية في هذا الفرع
+        secretaries = User.objects.filter(secretary_profile__branch=appointment.branch)
+        for sec in secretaries:
+            Notification.objects.create(
+                receiver=sec,
+                title="طلب حجز جديد",
+                message=f"لديك طلب حجز جديد من المريض {self.request.user.username} بتاريخ {appointment.appointment_date.date()}"
+            )
+
+    def perform_update(self, serializer):
+        old_instance = self.get_object()
+        appointment = serializer.save()
+        
+        if old_instance.status != appointment.status:
+            # إشعار للمريض
+            status_ar = "مقبول" if appointment.status == 'APPROVED' else "مرفوض" if appointment.status == 'REJECTED' else "مكتمل"
+            Notification.objects.create(
+                receiver=appointment.patient,
+                title="تحديث حالة الحجز",
+                message=f"تم تحديث حالة حجزك بتاريخ {appointment.appointment_date.date()} إلى: {status_ar}"
+            )
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(receiver=self.request.user)
+
+    def perform_create(self, serializer):
+        # Prevent users from creating notifications for others via API
+        serializer.save(receiver=self.request.user)
 
 class ChatMessageViewSet(viewsets.ModelViewSet):
     serializer_class = ChatMessageSerializer
