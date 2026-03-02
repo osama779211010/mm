@@ -1,8 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from .models import (
-    DiagnosticResult, UserProfile, DoctorProfile, 
-    Branch, SecretaryProfile, Appointment, ChatMessage
+    Branch, SecretaryProfile, Appointment, ChatMessage, Notification
 )
 
 class UserSerializer(serializers.ModelSerializer):
@@ -45,6 +44,8 @@ class SecretaryProfileSerializer(serializers.ModelSerializer):
 
 class AppointmentSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.username', read_only=True)
+    patient_full_name = serializers.CharField(source='patient.get_full_name', read_only=True)
+    patient_email = serializers.EmailField(source='patient.email', read_only=True)
     branch_name = serializers.CharField(source='branch.governorate', read_only=True)
     branch_phone = serializers.CharField(source='branch.contact_number', read_only=True)
 
@@ -69,3 +70,8 @@ class DiagnosticResultSerializer(serializers.ModelSerializer):
 class ImageUploadSerializer(serializers.Serializer):
     image = serializers.ImageField()
     diagnosis_type = serializers.ChoiceField(choices=DiagnosticResult.DIAGNOSIS_TYPES)
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = '__all__'
