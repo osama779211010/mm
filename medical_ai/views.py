@@ -44,8 +44,8 @@ class RegisterView(APIView):
                 
                 # Create extra profile based on role
                 if role == UserProfile.DOCTOR:
-                    specialty = request.data.get('specialty', 'طبيب عام')
-                    bio = request.data.get('bio', '')
+                    specialty = request.data.get('specialty', '').strip() or 'طبيب عام'
+                    bio = request.data.get('bio', '').strip()
                     DoctorProfile.objects.create(user=user, specialty=specialty, bio=bio)
                 elif role == UserProfile.SECRETARY:
                     branch_id = request.data.get('branch_id')
@@ -56,6 +56,8 @@ class RegisterView(APIView):
                         SecretaryProfile.objects.create(user=user, branch=branch)
                     except Branch.DoesNotExist:
                         return Response({'error': 'الفرع المحدد غير موجود.'}, status=status.HTTP_400_BAD_REQUEST)
+                    except Exception as e:
+                         return Response({'error': f'خطأ في تعيين الفرع: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
                 token, created = Token.objects.get_or_create(user=user)
                 
