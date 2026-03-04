@@ -47,7 +47,8 @@ class RegisterView(APIView):
                 if role == UserProfile.DOCTOR:
                     specialty = request.data.get('specialty', '').strip() or 'طبيب عام'
                     bio = request.data.get('bio', '').strip()
-                    DoctorProfile.objects.create(user=user, specialty=specialty, bio=bio)
+                    level = request.data.get('level', 'BACHELOR')
+                    DoctorProfile.objects.create(user=user, specialty=specialty, bio=bio, level=level)
                 elif role == UserProfile.SECRETARY:
                     branch_id = request.data.get('branch_id')
                     if not branch_id:
@@ -344,15 +345,17 @@ class MedicalDiagnosisView(APIView):
             try:
                 if diag_type == 'PNEUMONIA':
                     res, conf = ai_service.predict_pneumonia(image_path)
-                    if res.get('class') == 'Pneumonia':
+                    res_class = res.get('class', '').lower()
+                    if 'pneumonia' in res_class or 'مصاب' in res_class:
                         advice = "التحليل الرقمي يشير لاحتمالية وجود التهاب رئوي. يرجى مراجعة طبيب صدرية للفحص السريري والأشعة."
-                    elif "Issue Detected" in res.get('class', ''):
-                        advice = f"تم رصد علامات قد تشير لـ ({res['class']}). يرجى عرض الأشعة على أخصائي."
+                    elif 'invalid' in res_class or 'unconfirmed' in res_class or 'غير مؤكد' in res_class:
+                        advice = res.get('message', "النتيجة غير حاسمة، يرجى رفع صورة أشعة أكثر دقة.")
                     else:
                         advice = "لا تظهر مؤشرات واضحة للالتهاب الرئوي في هذه الأشعة وفقاً للتحليل الأولي."
                 elif diag_type == 'SKIN_CANCER':
                     res, conf = ai_service.predict_skin_cancer(image_path)
-                    if res.get('class') == 'Normal/Benign':
+                    res_class = res.get('class', '').lower()
+                    if 'normal' in res_class or 'benign' in res_class or 'غير مصاب' in res_class:
                         advice = "التصبغات الجلدية تبدو حميدة أو طبيعية. ومع ذلك، يفضل مراجعة الطبيب في حال تغير شكلها أو لونها."
                     else:
                         advice = f"تم رصد احتمالية إصابة بـ ({res['class']}). يرجى مراجعة طبيب جلدية متخصص للفحص السريري الدقيق."
@@ -364,7 +367,7 @@ class MedicalDiagnosisView(APIView):
 
                 temp_record.result = res
                 temp_record.confidence = conf
-                temp_record.ai_advice = advice
+                temp_record.ai_advice = res.get('ai_advice', advice)
                 temp_record.save()
 
                 return Response(DiagnosticResultSerializer(temp_record).data, status=status.HTTP_201_CREATED)
