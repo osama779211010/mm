@@ -3,7 +3,8 @@ import numpy as np
 import cv2
 from PIL import Image
 import tensorflow as tf
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import time
 
 class AIInferenceService:
@@ -15,38 +16,34 @@ class AIInferenceService:
         self._pneumonia_model = None
         self._skin_cancer_interpreter = None
         
-        # إعداد Gemini
+        # إعداد Gemini بالـ SDK الجديد
         self._setup_gemini()
         
     def _setup_gemini(self):
         try:
+            # المفتاح ممرر مباشرة للتجربة (تأكد من حمايته لاحقاً في ملف .env)
             api_key = "AIzaSyCazm5F_m8VWhPq9ZPIKmXc8g5TDPt_kpI"
-            genai.configure(api_key=api_key)
+            self._client = genai.Client(api_key=api_key)
+            self._model_id = "gemini-1.5-flash"
             
-            # تعليمات محسنة وشاملة للمساعد
-            system_instruction = """
+            # تعليمات المساعد الشاملة
+            self._system_instruction = """
             أنت "MASA" (اختصار لـ Medical AI Smart Assistant)، المساعد الطبي الذكي الشامل لنظام MAS AI HUB.
             
-            مهمتك الأساسية:
-            1. تمييز الصور الطبية (Vision): عند استلام صورة، حدد بدقة ما إذا كانت أشعة سينية للصدر (X-RAY)، أو صورة لآفة جلدية (SKIN)، أو صورة غير طبية (INVALID).
-            2. تقديم معلومات طبية وصحية دقيقة وشاملة للمستخدمين في كافة المجالات (أعراض، أدوية، تغذية، صحة نفسية).
+            المهمة:
+            1. تمييز الصور الطبية (Vision): حدد بدقة ما إذا كانت الصورة (X-RAY للصدر)، أو (SKIN آفة جلدية)، أو (INVALID غير طبية).
+            2. تقديم معلومات طبية دقيقة: أجب بشمولية عن الأعراض، الأدوية، والصحة العامة.
             
-            الاستجابة لتمييز الصور:
-            عندما نرسل لك صورة للتمييز، أجب بكلمة واحدة فقط من هذه الخيارات: [X-RAY, SKIN, INVALID].
+            عند تمييز الصور:
+            أجب بكلمة واحدة فقط: [X-RAY, SKIN, INVALID].
             
             شخصيتك:
-            خبير طبي ودود، متعاطف، وبليغ. رحب بالمستخدم دائماً ووجهه للفحص السريري عند الضرورة.
+            خبير طبي متعاطف ومهني. استخدم العربية الفصحى المبسطة.
             """
-            
-            self._gemini_model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash",
-                generation_config={"temperature": 0.2},
-                system_instruction=system_instruction
-            )
-            print("DEBUG SERVICE: Gemini AI (Vision Enabled) initialized.")
+            print("DEBUG SERVICE: New Gemini SDK Client initialized.")
         except Exception as e:
-            print(f"Error initializing Gemini: {e}")
-            self._gemini_model = None
+            print(f"Error initializing Gemini SDK: {e}")
+            self._client = None
 
     @property
     def pneumonia_interpreter(self):
@@ -55,7 +52,6 @@ class AIInferenceService:
             if os.path.exists(path):
                 self._pneumonia_model = tf.lite.Interpreter(model_path=path)
                 self._pneumonia_model.allocate_tensors()
-                print(f"DEBUG SERVICE: Pneumonia model pre-loaded.")
         return self._pneumonia_model
 
     @property
@@ -65,37 +61,46 @@ class AIInferenceService:
             if os.path.exists(path):
                 self._skin_cancer_interpreter = tf.lite.Interpreter(model_path=path)
                 self._skin_cancer_interpreter.allocate_tensors()
-                print(f"DEBUG SERVICE: Skin Cancer model pre-loaded.")
         return self._skin_cancer_interpreter
 
     def _distinguish_with_gemini(self, image_path):
         """
-        استخدام Gemini لتمييز نوع الصورة طبياً.
+        استخدام الـ SDK الجديد لتمييز نوع الصورة.
         """
-        if not self._gemini_model:
-            return "UNKNOWN"
+        if not self._client:
+            return "ERROR"
             
         try:
             img = Image.open(image_path)
-            prompt = "Classify this image into one of these categories: X-RAY (if it's a chest x-ray), SKIN (if it's a skin lesion or skin part), or INVALID (if it's not a medical related image or not clear). Answer with the category name only."
+            prompt = "Classify this image: X-RAY (if chest x-ray), SKIN (if skin lesion), or INVALID (not medical). Answer with one word only."
             
-            response = self._gemini_model.generate_content([prompt, img])
+            response = self._client.models.generate_content(
+                model=self._model_id,
+                contents=[prompt, img],
+                config=types.GenerateContentConfig(
+                    system_instruction=self._system_instruction,
+                    temperature=0.1
+                )
+            )
+            
             category = response.text.strip().upper()
-            print(f"DEBUG VISION: Gemini classified image as -> {category}")
-            return category
+            # التنظيف في حال كانت الإجابة تحتوي على نقاط أو كلمات إضافية
+            for word in ["X-RAY", "SKIN", "INVALID"]:
+                if word in category:
+                    print(f"DEBUG VISION: Gemini classified as -> {word}")
+                    return word
+            return "INVALID"
         except Exception as e:
-            print(f"Vision Error: {e}")
+            print(f"Vision Client Error: {e}")
             return "ERROR"
 
     def predict_pneumonia(self, image_path):
         start_time = time.time()
-        
-        # الخطوة 1: التمييز الذكي باستخدام Gemini
         category = self._distinguish_with_gemini(image_path)
+        
         if category != "X-RAY":
-            return {"error": "INVALID_IMAGE", "message": "الصورة المرفوعة لا تبدو كأشعة سينية للصدر. يرجى التأكد من رفع الصورة الصحيحة.", "class": "غير صالحة"}, 0.0
+            return {"error": "INVALID_IMAGE", "message": "يبدو أن الصورة ليست أشعة سينية للصدر.", "class": "غير صالحة"}, 0.0
 
-        # الخطوة 2: التحليل التخصصي (سريع جداً باستخدام TFLite)
         interpreter = self.pneumonia_interpreter
         if not interpreter: return {"error": "Model Error"}, 0.0
 
@@ -115,23 +120,21 @@ class AIInferenceService:
         label = "مصاب (Pneumonia)" if p_prob > 0.5 else "سليم (Normal)"
         display_conf = p_prob if p_prob > 0.5 else 1.0 - p_prob
         
-        print(f"DEBUG PERFORMANCE: Prediction took {time.time() - start_time:.2f}s")
+        print(f"DEBUG: Pneumonia Analyzed in {time.time() - start_time:.2f}s")
         return {
             "class": label, 
             "probability": p_prob, 
-            "ai_advice": "تم التحقق من نوع الصورة بواسطة الذكاء الاصطناعي بنجاح. " + 
-                         ("الرئة تظهر علامات التهاب." if p_prob > 0.5 else "الرئة تظهر بشكل طبيعي.")
+            "ai_advice": "تم تأكيد نوع الصورة (أشعة سينية). " + 
+                         ("هناك مؤشرات لالتهاب رئوي." if p_prob > 0.5 else "الرئة تظهر بشكل سليم.")
         }, display_conf
 
     def predict_skin_cancer(self, image_path):
         start_time = time.time()
-        
-        # الخطوة 1: التمييز الذكي
         category = self._distinguish_with_gemini(image_path)
+        
         if category != "SKIN":
-            return {"error": "INVALID_IMAGE", "message": "الصورة المرفوعة لا تبدو كآفة جلدية. يرجى تصوير المنطقة المصابة بوضوح.", "class": "غير صالحة"}, 0.0
+            return {"error": "INVALID_IMAGE", "message": "الصورة لا تظهر عليها ملامح جلدية واضحة.", "class": "غير صالحة"}, 0.0
 
-        # الخطوة 2: التحليل التخصصي
         interpreter = self.skin_cancer_interpreter
         if not interpreter: return {"error": "Model Error"}, 0.0
 
@@ -154,28 +157,38 @@ class AIInferenceService:
         benign_list = ["Melanocytic nevi", "Benign keratosis-like lesions", "Dermatofibroma", "Vascular lesions"]
         label = "سليم (حميد/طبيعي)" if raw_label in benign_list else f"مصاب محتمل ({raw_label})"
 
-        print(f"DEBUG PERFORMANCE: Skin prediction took {time.time() - start_time:.2f}s")
+        print(f"DEBUG: Skin Analyzed in {time.time() - start_time:.2f}s")
         return {
             "class": label, 
             "raw_class": raw_label, 
             "probability": prob,
-            "ai_advice": f"تم التعرف على الصورة كآفة جلدية. النتيجة الأولية: {label}."
+            "ai_advice": f"تم التعرف على المنطقة المصابة. النتيجة الأولية: {label}."
         }, prob
 
     def get_ai_advice(self, message, history=None):
-        if not self._gemini_model:
-            return "عذراً، خدمة الذكاء الاصطناعي غير متوفرة حالياً."
+        if not self._client:
+            return "عذراً، خدمة الذكاء الاصطناعي معطلة مؤقتاً."
             
         try:
-            chat_history = []
+            # تحويل سياق المحادثة للنظام الجديد
+            contents = []
             if history:
                 for entry in history:
                     role = "user" if entry.get("sender") == "user" else "model"
-                    chat_history.append({"role": role, "parts": [entry.get("text", "")]})
+                    contents.append(types.Content(role=role, parts=[types.Part.from_text(text=entry.get("text", ""))]))
             
-            chat_session = self._gemini_model.start_chat(history=chat_history)
-            response = chat_session.send_message(message)
+            # إضافة الرسالة الحالية
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=message)]))
+            
+            response = self._client.models.generate_content(
+                model=self._model_id,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=self._system_instruction,
+                    temperature=0.4
+                )
+            )
             return response.text
         except Exception as e:
-            print(f"Gemini API Error: {e}")
-            return "حدث خطأ أثناء معالجة طلبك المعذرة."
+            print(f"Chat API Client Error: {e}")
+            return "لم أستطع معالجة طلبك حالياً، يرجى المحاولة لاحقاً."
