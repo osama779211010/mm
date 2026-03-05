@@ -6,6 +6,10 @@ import tensorflow as tf
 from google import genai
 from google.genai import types
 import time
+from dotenv import load_dotenv
+
+# تحميل متغيرات البيئة من ملف .env
+load_dotenv()
 
 class AIInferenceService:
     def __init__(self):
@@ -21,8 +25,14 @@ class AIInferenceService:
         
     def _setup_gemini(self):
         try:
-            # المفتاح ممرر مباشرة للتجربة (تأكد من حمايته لاحقاً في ملف .env)
-            api_key = "AIzaSyCazm5F_m8VWhPq9ZPIKmXc8g5TDPt_kpI"
+            # تحميل المفتاح من ملف .env لضمان الأمان
+            api_key = os.getenv("GEMINI_API_KEY")
+            
+            if not api_key:
+                print("WARNING: GEMINI_API_KEY not found in environment variables.")
+                self._client = None
+                return
+
             self._client = genai.Client(api_key=api_key)
             self._model_id = "gemini-1.5-flash"
             
