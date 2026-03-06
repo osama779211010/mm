@@ -34,7 +34,25 @@ class AIInferenceService:
                 return
 
             self._client = genai.Client(api_key=api_key)
-            self._model_id = "gemini-1.5-flash"
+            
+            # جلب النماذج المتاحة واختيار المتاح منها تلقائياً لتجنب خطأ 404
+            self._model_id = "gemini-1.5-flash" # Default fallback
+            try:
+                available = [m.name.replace('models/', '') for m in self._client.models.list() if 'gemini' in m.name.lower()]
+                if available:
+                    # تفضيل موديلات flash أو pro المتوفرة
+                    flash_models = [m for m in available if 'flash' in m.lower()]
+                    pro_models = [m for m in available if 'pro' in m.lower()]
+                    
+                    if flash_models:
+                        self._model_id = flash_models[0]
+                    elif pro_models:
+                        self._model_id = pro_models[0]
+                    else:
+                        self._model_id = available[0]
+                    print(f"DEBUG SERVICE: Auto-selected Gemini Model -> {self._model_id}")
+            except Exception as e:
+                print(f"Warning: Could not list models for auto-selection, using default. Error: {e}")
             
             # تعليمات المساعد الشاملة
             self._system_instruction = """
