@@ -25,11 +25,18 @@ class AIInferenceService:
         
     def _setup_gemini(self):
         try:
-            # تحميل المفتاح من ملف .env لضمان الأمان
-            api_key = os.getenv("GEMINI_API_KEY")
+            # تحميل المفتاح من قاعدة البيانات لضمان الأمان المطلق وحمايته من التسريب عبر GitHub
+            from .models import SystemSetting
+            
+            try:
+                setting = SystemSetting.objects.get(key="GEMINI_API_KEY")
+                api_key = setting.value
+            except SystemSetting.DoesNotExist:
+                # محاولة بديلة من البيئة في حال لم يتم إعداده في لوحة التحكم بعد
+                api_key = os.getenv("GEMINI_API_KEY")
             
             if not api_key:
-                print("WARNING: GEMINI_API_KEY not found in environment variables.")
+                print("WARNING: GEMINI_API_KEY not found in Database or Environment.")
                 self._client = None
                 return
 
