@@ -1,8 +1,15 @@
 from django.contrib import admin
 from .models import (
     DiagnosticResult, UserProfile, DoctorProfile, Branch, SecretaryProfile,
-    Appointment, ChatMessage, Notification, FCMToken, SystemSetting, AIChatMessage
+    Appointment, ChatMessage, Notification, FCMToken, SystemSetting, AIChatMessage,
+    AdBanner
 )
+
+@admin.register(AdBanner)
+class AdBannerAdmin(admin.ModelAdmin):
+    list_display = ('title', 'is_active', 'created_at')
+    list_filter = ('is_active',)
+    search_fields = ('title', 'subtitle')
 
 @admin.register(SystemSetting)
 class SystemSettingAdmin(admin.ModelAdmin):
