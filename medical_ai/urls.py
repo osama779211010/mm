@@ -5,7 +5,7 @@ from .views import (
     UserProfileViewSet, DoctorProfileViewSet, BranchViewSet,
     SecretaryProfileViewSet, AppointmentViewSet, ChatMessageViewSet,
     UserViewSet, DiagnosticResultViewSet, RegisterView, LoginView,
-    NotificationViewSet, FCMTokenViewSet, AIChatViewSet
+    NotificationViewSet, FCMTokenViewSet, AIChatViewSet, AdBannerViewSet
 )
 
 router = DefaultRouter()
@@ -20,6 +20,7 @@ router.register(r'results', DiagnosticResultViewSet, basename='diagnosticresult'
 router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'fcm-tokens', FCMTokenViewSet, basename='fcmtoken')
 router.register(r'ai-chat', AIChatViewSet, basename='aichatmessage')
+router.register(r'ad-banners', AdBannerViewSet, basename='adbanner')
 
 urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
