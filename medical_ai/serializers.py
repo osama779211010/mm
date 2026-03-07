@@ -1,9 +1,15 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from .models import (
-    DiagnosticResult, UserProfile, DoctorProfile, 
-    Branch, SecretaryProfile, Appointment, ChatMessage, Notification, FCMToken
+    DiagnosticResult, UserProfile, DoctorProfile, Branch, SecretaryProfile,
+    Appointment, ChatMessage, Notification, FCMToken, AIChatMessage
 )
+
+class AIChatMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIChatMessage
+        fields = '__all__'
+        read_only_fields = ('id', 'timestamp')
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
