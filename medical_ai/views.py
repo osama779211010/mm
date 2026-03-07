@@ -12,15 +12,22 @@ from .serializers import (
     ImageUploadSerializer, DiagnosticResultSerializer, UserSerializer,
     UserProfileSerializer, DoctorProfileSerializer, BranchSerializer,
     SecretaryProfileSerializer, AppointmentSerializer, ChatMessageSerializer,
-    NotificationSerializer, FCMTokenSerializer, AIChatMessageSerializer
+    NotificationSerializer, FCMTokenSerializer, AIChatMessageSerializer,
+    AdBannerSerializer
 )
 import requests
 import json
 from .models import (
     DiagnosticResult, UserProfile, DoctorProfile, 
     Branch, SecretaryProfile, Appointment, ChatMessage, Notification, FCMToken,
-    AIChatMessage
+    AIChatMessage, AdBanner
 )
+
+class AdBannerViewSet(viewsets.ReadOnlyModelViewSet):
+    # Public viewset for active ads
+    queryset = AdBanner.objects.filter(is_active=True).order_by('-created_at')
+    serializer_class = AdBannerSerializer
+    permission_classes = [permissions.AllowAny]
 from django.contrib.auth.models import User
 
 from django.db import transaction
