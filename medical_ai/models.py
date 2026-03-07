@@ -11,7 +11,7 @@ class UserProfile(models.Model):
         (DOCTOR, 'طبيب'),
         (SECRETARY, 'سكرتير'),
     ]
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='userprofile')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='userprofile', db_index=True)
     role = models.CharField(max_length=20, choices=ROLES, default=PATIENT)
 
     def __str__(self):
@@ -25,7 +25,7 @@ class DoctorProfile(models.Model):
         ('SPECIALIST', 'أخصائي'),
         ('CONSULTANT', 'استشاري'),
     ]
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='doctor_profile')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='doctor_profile', db_index=True)
     specialty = models.CharField(max_length=100, help_text="التخصص الطبي")
     level = models.CharField(max_length=20, choices=LEVELS, default='BACHELOR')
     bio = models.TextField(blank=True, null=True, help_text="نبذة عن الدكتور")
@@ -36,7 +36,7 @@ class DoctorProfile(models.Model):
         return f"Dr. {self.user.get_full_name() or self.user.username} - {self.specialty}"
 
 class Branch(models.Model):
-    doctor = models.ForeignKey(DoctorProfile, on_delete=models.CASCADE, related_name='branches')
+    doctor = models.ForeignKey(DoctorProfile, on_delete=models.CASCADE, related_name='branches', db_index=True)
     governorate = models.CharField(max_length=100, help_text="المحافظة")
     street_name = models.CharField(max_length=255, help_text="الشارع")
     contact_number = models.CharField(max_length=20, blank=True, null=True, help_text="رقم هاتف السكرتارية/الفرع (اختياري)")
@@ -48,8 +48,8 @@ class Branch(models.Model):
         return f"{self.doctor.user.username} - {self.governorate} ({self.street_name})"
 
 class SecretaryProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='secretary_profile')
-    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='secretaries')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='secretary_profile', db_index=True)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='secretaries', db_index=True)
 
     def __str__(self):
         return f"Secretary {self.user.username} at {self.branch}"
@@ -61,8 +61,8 @@ class Appointment(models.Model):
         ('REJECTED', 'مرفوض'),
         ('COMPLETED', 'مكتمل'),
     ]
-    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='appointments')
-    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='appointments')
+    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='appointments', db_index=True)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='appointments', db_index=True)
     appointment_date = models.DateTimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     notes = models.TextField(blank=True, null=True)
@@ -72,10 +72,10 @@ class Appointment(models.Model):
         return f"Appointment: {self.patient.username} at {self.branch} on {self.appointment_date}"
 
 class ChatMessage(models.Model):
-    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
-    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages', db_index=True)
+    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages', db_index=True)
     content = models.TextField()
-    timestamp = models.DateTimeField(auto_now_add=True)
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
     is_read = models.BooleanField(default=False)
 
     class Meta:
@@ -94,7 +94,7 @@ class DiagnosticResult(models.Model):
         ('BRAIN_TUMOR', 'أورام الدماغ'),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, db_index=True)
     diagnosis_type = models.CharField(max_length=50, choices=DIAGNOSIS_TYPES)
     image = models.ImageField(upload_to='medical_uploads/', null=True, blank=True)
     result = models.JSONField(help_text="النتيجة التفصيلية من الذكاء الاصطناعي")
@@ -106,7 +106,7 @@ class DiagnosticResult(models.Model):
         return f"{self.diagnosis_type} - {self.created_at}"
 
 class Notification(models.Model):
-    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications', db_index=True)
     title = models.CharField(max_length=255)
     message = models.TextField()
     is_read = models.BooleanField(default=False)
@@ -118,7 +118,7 @@ class Notification(models.Model):
     def __str__(self):
         return f"Notification for {self.receiver.username}: {self.title}"
 class FCMToken(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='fcm_tokens')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='fcm_tokens', db_index=True)
     token = models.TextField(unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -133,3 +133,15 @@ class SystemSetting(models.Model):
 
     def __str__(self):
         return self.key
+
+class AIChatMessage(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_conversations', db_index=True)
+    message = models.TextField()
+    response = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['timestamp']
+
+    def __str__(self):
+        return f"AI Chat: {self.user.username} - {self.timestamp}"
