@@ -23,11 +23,20 @@ from .models import (
     AIChatMessage, AdBanner
 )
 
-class AdBannerViewSet(viewsets.ReadOnlyModelViewSet):
-    # Public viewset for active ads
-    queryset = AdBanner.objects.filter(is_active=True).order_by('-created_at')
+class AdBannerViewSet(viewsets.ModelViewSet):
+    queryset = AdBanner.objects.all().order_by('-created_at')
     serializer_class = AdBannerSerializer
-    permission_classes = [permissions.AllowAny]
+    
+    def get_permissions(self):
+        if self.request.method in permissions.SAFE_METHODS:
+            return [permissions.AllowAny()]
+        return [permissions.IsAdminUser()]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return AdBanner.objects.all().order_by('-created_at')
+        return AdBanner.objects.filter(is_active=True).order_by('-created_at')
+
 from django.contrib.auth.models import User
 
 from django.db import transaction
