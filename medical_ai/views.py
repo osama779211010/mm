@@ -12,13 +12,14 @@ from .serializers import (
     ImageUploadSerializer, DiagnosticResultSerializer, UserSerializer,
     UserProfileSerializer, DoctorProfileSerializer, BranchSerializer,
     SecretaryProfileSerializer, AppointmentSerializer, ChatMessageSerializer,
-    NotificationSerializer, FCMTokenSerializer
+    NotificationSerializer, FCMTokenSerializer, AIChatMessageSerializer
 )
 import requests
 import json
 from .models import (
     DiagnosticResult, UserProfile, DoctorProfile, 
-    Branch, SecretaryProfile, Appointment, ChatMessage, Notification, FCMToken
+    Branch, SecretaryProfile, Appointment, ChatMessage, Notification, FCMToken,
+    AIChatMessage
 )
 from django.contrib.auth.models import User
 
@@ -147,22 +148,22 @@ class BranchViewSet(viewsets.ModelViewSet):
         profile = getattr(user, 'userprofile', None)
         
         if user.is_staff:
-            return Branch.objects.all()
+            return Branch.objects.select_related('doctor__user').all()
         
         if profile and profile.role == UserProfile.DOCTOR:
-            return Branch.objects.filter(doctor__user=user)
+            return Branch.objects.select_related('doctor__user').filter(doctor__user=user)
         
         if profile and profile.role == UserProfile.SECRETARY:
             sec_profile = getattr(user, 'secretary_profile', None)
             if sec_profile:
-                return Branch.objects.filter(id=sec_profile.branch.id)
+                return Branch.objects.select_related('doctor__user').filter(id=sec_profile.branch.id)
         
         # Patients can see branches to book them, but maybe filter by doctor_id in query params
         doctor_id = self.request.query_params.get('doctor_id')
         if doctor_id:
-            return Branch.objects.filter(doctor_id=doctor_id)
+            return Branch.objects.select_related('doctor__user').filter(doctor_id=doctor_id)
             
-        return Branch.objects.all() # Or return none if you want strict lists
+        return Branch.objects.select_related('doctor__user').all()
 
     def perform_create(self, serializer):
         # Auto-assign branch to the doctor who created it
@@ -178,15 +179,15 @@ class SecretaryProfileViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_staff:
-            return SecretaryProfile.objects.all()
+            return SecretaryProfile.objects.select_related('user', 'branch').all()
         
         # Doctors see secretaries in their branches
         if hasattr(user, 'doctor_profile'):
-            return SecretaryProfile.objects.filter(branch__doctor__user=user)
+            return SecretaryProfile.objects.select_related('user', 'branch').filter(branch__doctor__user=user)
             
         # Secretary sees themselves
         if hasattr(user, 'secretary_profile'):
-            return SecretaryProfile.objects.filter(user=user)
+            return SecretaryProfile.objects.select_related('user', 'branch').filter(user=user)
             
         return SecretaryProfile.objects.none()
 
@@ -198,19 +199,22 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         user = self.request.user
         profile = getattr(user, 'userprofile', None)
 
+        # Optimization: Fetch patient information and branch details in one go
+        base_qs = Appointment.objects.select_related('patient', 'branch__doctor__user')
+
         if user.is_staff:
-            return Appointment.objects.all()
+            return base_qs.all()
 
         if profile and profile.role == UserProfile.DOCTOR:
-            return Appointment.objects.filter(branch__doctor__user=user)
+            return base_qs.filter(branch__doctor__user=user)
 
         if profile and profile.role == UserProfile.SECRETARY:
             sec_profile = getattr(user, 'secretary_profile', None)
             if sec_profile:
-                return Appointment.objects.filter(branch=sec_profile.branch)
+                return base_qs.filter(branch=sec_profile.branch)
 
         # For patients
-        return Appointment.objects.filter(patient=user)
+        return base_qs.filter(patient=user)
 
     def perform_create(self, serializer):
         appointment = serializer.save(patient=self.request.user)
@@ -310,7 +314,8 @@ class ChatMessageViewSet(viewsets.ModelViewSet):
             return ChatMessage.objects.none()
         
         # All messages where current user is sender OR receiver
-        queryset = ChatMessage.objects.filter(models.Q(sender=user) | models.Q(receiver=user))
+        queryset = ChatMessage.objects.select_related('sender', 'receiver') \
+            .filter(models.Q(sender=user) | models.Q(receiver=user))
         
         # Optional: filter further by a specific contact
         with_user_id = self.request.query_params.get('with_user')
@@ -448,3 +453,38 @@ class ChatAdviceView(APIView):
             return Response({"advice": advice}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+class AIChatViewSet(viewsets.ModelViewSet):
+    serializer_class = AIChatMessageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return AIChatMessage.objects.filter(user=self.request.user).order_by('timestamp')
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+class ChatAdviceView(APIView):
+    # This view will now also persist the chat
+    def post(self, request):
+        message = request.data.get('message')
+        history = request.data.get('history', [])
+        
+        if not message:
+            return Response({'error': 'Message is required'}, status=400)
+
+        ai_service = get_ai_service()
+        try:
+            # Get response from Gemini
+            response_text = ai_service.get_chat_advice(message, history)
+            
+            # Persist to database
+            if request.user.is_authenticated:
+                AIChatMessage.objects.create(
+                    user=request.user,
+                    message=message,
+                    response=response_text
+                )
+
+            return Response({'response': response_text})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
