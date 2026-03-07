@@ -145,3 +145,18 @@ class AIChatMessage(models.Model):
 
     def __str__(self):
         return f"AI Chat: {self.user.username} - {self.timestamp}"
+
+class AdBanner(models.Model):
+    title = models.CharField(max_length=200, verbose_name="العنوان")
+    subtitle = models.CharField(max_length=500, verbose_name="العنوان الفرعي")
+    image = models.ImageField(upload_to='banners/', verbose_name="صورة الإعلان")
+    link_url = models.URLField(blank=True, null=True, verbose_name="رابط خارجي (اختياري)")
+    is_active = models.BooleanField(default=True, verbose_name="نشط")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "إعلان متحرك"
+        verbose_name_plural = "الإعلانات المتحركة"
+
+    def __str__(self):
+        return self.title
