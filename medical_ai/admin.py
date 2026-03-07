@@ -1,8 +1,13 @@
 from django.contrib import admin
 from .models import (
     DiagnosticResult, UserProfile, DoctorProfile, 
-    Branch, SecretaryProfile, Appointment, ChatMessage
+    Branch, SecretaryProfile, Appointment, ChatMessage, SystemSetting
 )
+
+@admin.register(SystemSetting)
+class SystemSettingAdmin(admin.ModelAdmin):
+    list_display = ('key', 'updated_at', 'description')
+    search_fields = ('key',)
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
