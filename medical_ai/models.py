@@ -124,3 +124,12 @@ class FCMToken(models.Model):
 
     def __str__(self):
         return f"Token for {self.user.username}"
+
+class SystemSetting(models.Model):
+    key = models.CharField(max_length=50, unique=True, help_text="اسم الإعداد (مثال: GEMINI_API_KEY)")
+    value = models.TextField(help_text="قيمة الإعداد (المفتاح السري)")
+    description = models.CharField(max_length=255, blank=True, help_text="وصف الإعداد")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.key
