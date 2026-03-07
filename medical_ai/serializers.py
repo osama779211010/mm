@@ -2,8 +2,13 @@ from django.contrib.auth.models import User
 from rest_framework import serializers
 from .models import (
     DiagnosticResult, UserProfile, DoctorProfile, Branch, SecretaryProfile,
-    Appointment, ChatMessage, Notification, FCMToken, AIChatMessage
+    Appointment, ChatMessage, Notification, FCMToken, AIChatMessage, AdBanner
 )
+
+class AdBannerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AdBanner
+        fields = '__all__'
 
 class AIChatMessageSerializer(serializers.ModelSerializer):
     class Meta:
