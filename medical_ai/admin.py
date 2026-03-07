@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
-    DiagnosticResult, UserProfile, DoctorProfile, 
-    Branch, SecretaryProfile, Appointment, ChatMessage, SystemSetting
+    DiagnosticResult, UserProfile, DoctorProfile, Branch, SecretaryProfile,
+    Appointment, ChatMessage, Notification, FCMToken, SystemSetting, AIChatMessage
 )
 
 @admin.register(SystemSetting)
@@ -9,7 +9,17 @@ class SystemSettingAdmin(admin.ModelAdmin):
     list_display = ('key', 'updated_at', 'description')
     search_fields = ('key',)
 
-@admin.register(UserProfile)
+@admin.register(AIChatMessage)
+class AIChatMessageAdmin(admin.ModelAdmin):
+    list_display = ('user', 'timestamp', 'message_preview')
+    list_filter = ('timestamp',)
+    search_fields = ('user__username', 'message', 'response')
+
+    def message_preview(self, obj):
+        return obj.message[:50] + "..." if len(obj.message) > 50 else obj.message
+    message_preview.short_description = 'Message'
+
+admin.site.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'role')
     list_filter = ('role',)
