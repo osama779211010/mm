@@ -456,19 +456,6 @@ class MedicalDiagnosisView(APIView):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class ChatAdviceView(APIView):
-    def post(self, request, *args, **kwargs):
-        message = request.data.get('message', '')
-        history = request.data.get('history', []) # استقبال سجل المحادثة
-        if not message:
-            return Response({"error": "Message is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        ai_service = get_ai_service()
-        try:
-            advice = ai_service.get_ai_advice(message, history=history)
-            return Response({"advice": advice}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class AIChatViewSet(viewsets.ModelViewSet):
     serializer_class = AIChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -480,27 +467,28 @@ class AIChatViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 class ChatAdviceView(APIView):
-    # This view will now also persist the chat
-    def post(self, request):
-        message = request.data.get('message')
+    def post(self, request, *args, **kwargs):
+        message = request.data.get('message', '')
         history = request.data.get('history', [])
         
         if not message:
-            return Response({'error': 'Message is required'}, status=400)
+            return Response({"error": "Message is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         ai_service = get_ai_service()
         try:
             # Get response from Gemini
-            response_text = ai_service.get_chat_advice(message, history)
+            advice_text = ai_service.get_ai_advice(message, history=history)
             
             # Persist to database
             if request.user.is_authenticated:
                 AIChatMessage.objects.create(
                     user=request.user,
                     message=message,
-                    response=response_text
+                    response=advice_text
                 )
 
-            return Response({'response': response_text})
+            return Response({"advice": advice_text}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({'error': str(e)}, status=500)
+            import traceback
+            traceback.print_exc()
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
