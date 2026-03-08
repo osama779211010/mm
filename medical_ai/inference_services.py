@@ -184,13 +184,31 @@ class AIInferenceService:
         interpreter.invoke()
         output_data = interpreter.get_tensor(output_details[0]['index'])[0]
         
-        labels = ["Actinic keratoses", "Basal cell carcinoma", "Benign keratosis-like lesions", "Dermatofibroma", "Melanoma", "Melanocytic nevi", "Vascular lesions"]
+        # Original model labels: ['akiec', 'bcc', 'bkl', 'df', 'mel','nv', 'vasc']
+        # 0: Actinic keratoses (akiec)
+        # 1: Basal cell carcinoma (bcc)
+        # 2: Benign keratosis-like lesions (bkl)
+        # 3: Dermatofibroma (df)
+        # 4: Melanoma (mel)
+        # 5: Melanocytic nevi (nv)
+        # 6: Vascular lesions (vasc)
+        labels = [
+            "Actinic keratoses",
+            "Basal cell carcinoma",
+            "Benign keratosis-like lesions",
+            "Dermatofibroma",
+            "Melanoma",
+            "Melanocytic nevi",
+            "Vascular lesions"
+        ]
+        
         top_indices = np.argsort(output_data)[-3:][::-1]
         prob = float(output_data[top_indices[0]])
         
         raw_label = labels[top_indices[0]]
+        # bkl (Benign keratosis-like lesions), df (Dermatofibroma), nv (Melanocytic nevi), vasc (Vascular lesions) are generally benign.
         benign_list = ["Melanocytic nevi", "Benign keratosis-like lesions", "Dermatofibroma", "Vascular lesions"]
-        label = "سليم (حميد/طبيعي)" if raw_label in benign_list else f"مصاب محتمل ({raw_label})"
+        label = "سليم (التصبغات تبدو حميدة/طبيعية)" if raw_label in benign_list else f"مصاب محتمل ({raw_label})"
 
         print(f"DEBUG: Skin Analyzed in {time.time() - start_time:.2f}s")
         return {
