@@ -43,6 +43,12 @@ class Branch(models.Model):
 
     class Meta:
         verbose_name_plural = "Branches"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['doctor', 'governorate', 'street_name'],
+                name='unique_branch_per_doctor'
+            )
+        ]
 
     def __str__(self):
         return f"{self.doctor.user.username} - {self.governorate} ({self.street_name})"
