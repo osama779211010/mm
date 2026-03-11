@@ -15,6 +15,7 @@ from .serializers import (
     NotificationSerializer, FCMTokenSerializer, AIChatMessageSerializer,
     AdBannerSerializer
 )
+from rest_framework.decorators import action
 import requests
 import json
 from .models import (
@@ -341,7 +342,53 @@ class ChatMessageViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        serializer.save(sender=self.request.user)
+        message = serializer.save(sender=self.request.user)
+        
+        # Create notification for receiver
+        receiver = message.receiver
+        if receiver:
+            # Create in-app notification
+            from .models import Notification
+            Notification.objects.create(
+                receiver=receiver,
+                title=f"رسالة جديدة من {self.request.user.get_full_name() or self.request.user.username}",
+                message=message.content[:50] + ("..." if len(message.content) > 50 else "")
+            )
+            
+            # Send Push Notification
+            send_fcm_notification(
+                receiver,
+                "رسالة جديدة",
+                f"لديك رسالة جديدة من {self.request.user.get_full_name() or self.request.user.username}"
+            )
+
+    @action(detail=False, methods=['get'])
+    def conversations(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response([], status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get unique users who have exchanged messages with current user
+        sent_to = ChatMessage.objects.filter(sender=user).values_list('receiver', flat=True)
+        received_from = ChatMessage.objects.filter(receiver=user).values_list('sender', flat=True)
+        
+        user_ids = set(list(sent_to) + list(received_from))
+        
+        from django.contrib.auth.models import User
+        users = User.objects.filter(id__in=user_ids)
+        
+        data = []
+        for u in users:
+            # We can use UserSerializer but let's be concise
+            data.append({
+                'id': u.id,
+                'username': u.username,
+                'first_name': u.first_name,
+                'last_name': u.last_name,
+                'full_name': u.get_full_name() or u.username
+            })
+            
+        return Response(data)
 
 class DiagnosticResultViewSet(viewsets.ModelViewSet):
     serializer_class = DiagnosticResultSerializer
