@@ -72,6 +72,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatMessage
         fields = '__all__'
+        read_only_fields = ('sender',)
 
 class DiagnosticResultSerializer(serializers.ModelSerializer):
     class Meta:
